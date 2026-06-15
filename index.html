@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WordFlow</title>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    body { margin: 0; background-color: #0F1117; font-family: 'Inter', system-ui, sans-serif; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    const SUPABASE_URL = "https://ovohvlhrvdqggyubzpyt.supabase.co";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im92b2h2bGhydmRxZ2d5dWJ6cHl0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEzNTEyODAsImV4cCI6MjA5NjkyNzI4MH0.-_3ZffF4lQB_8JQvfUI9MgMs2ujOxHTThPkPoPx3p_o";
+    const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    const C = {
+      bg: "#0F1117", surface: "#181C27", card: "#1E2333", border: "#2A3050",
+      accent: "#6C63FF", green: "#3DDC84", greenSoft: "#1A3D2B",
+      red: "#FF5C5C", redSoft: "#3D1A1A", yellow: "#FFD166", yellowSoft: "#3D2E0A",
+      textPrimary: "#F0F2FF", textSecondary: "#8892B0", textMuted: "#4A5180",
+    };
+
+    const LEARNED_THRESHOLD = 5;
+    const USERS = [
+      { id: "misha", name: "Миша", emoji: "👨‍💻", color: "#6C63FF" },
+      { id: "rita",  name: "Рита",  emoji: "👩‍🎨", color: "#FF6B9D" },
+      { id: "guest",  name: "Гость",  emoji: "👩‍🎨", color: "#FF6B9D" },
+
+    ];
+
+    const norm = (s) => s.trim().toLowerCase();
+
+    function shuffle(arr) {
+      const a = [...arr];
+      for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+      }
+      return a;
+    }
+
+    const S = {
+      btn: (extra = {}) => ({
+        display: "inline-flex", alignItems: "center", gap: 6,
+        padding: "9px 18px", borderRadius: 10, border: "none",
+        cursor: "pointer", fontFamily: "inherit", fontSize: 14,
+        fontWeight: 600, transition: "all .15s", ...extra,
+      }),
+      input: {
+        width: "100%", background: "#181C27", border: "1.5px solid #2A3050",
+        borderRadius: 10, color: "#F0F2FF", fontFamily: "inherit",
+        fontSize: 15, padding: "11px 14px", outline: "none",
+        boxSizing: "border-box", transition: "border .15s",
+      },
+    };
+
+    const Icons = {
+      swap: () => (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} width={17} height={17}>
+          <path d="M7 16V4m0 0L3 8m4-4l4 4M17 8v12m0 0l4-4m-4 4l-4-4" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      ),
+      plus: () => (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} width={17} height={17}>
+          <path d="M12 5v14M5 12h14" strokeLinecap="round"/>
+        </svg>
+      ),
+      trash: () => (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} width={15} height={15}>
+          <path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      ),
+      edit: () => (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} width={15} height={15}>
+          <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7M18.5 2.5a2.121 2.121 0 113 3L12 15l-4 1 1-4 9.5-9.5z" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      ),
+      save: () => (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} width={15} height={15}>
+          <path d="M20 6L9 17l-5-5" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      ),
+      star: () => (
+        <svg viewBox="0 0 24 24" fill="currentColor" width={15} height={15}>
+          <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+        </svg>
+      ),
+      refresh: () => (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} width={17} height={17}>
+          <path d="M1 4v6h6M23 20v-6h-6" strokeLinecap="round" strokeLinejoin="round"/>
+          <path d="M20.49 9A9 9 0 005.64 5.64L1 10M23 14l-4.64 4.36A9 9 0 013.51 15" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      ),
+      logout: () => (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} width={15} height={15}>
+          <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      ),
+      repeat: () => (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} width={14} height={14}>
+          <path d="M17 1l4 4-4 4M3 11V9a4 4 0 014-4h14M7 23l-4-4 4-4M21 13v2a4 4 0 01-4 4H3" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      ),
+      book: () => (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} width={17} height={17}>
+          <path d="M4 19.5A2.5 2.5 0 016.5 17H20" strokeLinecap="round"/>
+          <path d="M4 4.5A2.5 2.5 0 016.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15z" strokeLinecap="round"/>
+        </svg>
+      ),
+      list: () => (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} width={17} height={17}>
+          <path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" strokeLinecap="round"/>
+        </svg>
+      ),
+      eyeOff: () => (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} width={15} height={15}>
+          <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24M1 1l22 22" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      )
+    };
+
+    function LoginScreen({ onSelect }) {
+      const [stats, setStats] = useState({});
+      const [loading, setLoading] = useState(true);
+
+      useEffect(() => {
+        async function fetchGlobalStats() {
+          try {
+            const { data, error } = await supabase.from('wordflow_words').select('user_id, learned');
+            if (error) throw error;
+            const computed = USERS.reduce((acc, u) => {
+              const userWords = data ? data.filter(w => w.user_id === u.id) : [];
+              acc[u.id] = { total: userWords.length, learned: userWords.filter(w => w.learned).length };
+              return acc;
+            }, {});
+            setStats(computed);
+          } catch (e) { console.error(e); }
+          finally { setLoading(false); }
+        }
+        fetchGlobalStats();
+      }, []);
+
+      return (
+        <div style={{ background: C.bg, minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24 }}>
+          <div style={{ fontSize: 52, marginBottom: 10 }}>📚</div>
+          <div style={{ fontWeight: 800, fontSize: 28, color: C.textPrimary, letterSpacing: "-0.5px", marginBottom: 6 }}>WordFlow</div>
+          <div style={{ color: C.textSecondary, fontSize: 15, marginBottom: 48 }}>Кто будет учить английский?</div>
+          {loading ? ( <div style={{ color: C.textSecondary }}>Загрузка...</div> ) : (
+            <div style={{ display: "flex", gap: 20, flexWrap: "wrap", justifyContent: "center" }}>
+              {USERS.map((u) => {
+                const st = stats[u.id] || { total: 0, learned: 0 };
+                return (
+                  <button key={u.id} onClick={() => onSelect(u.id)} style={{ background: C.surface, border: `2px solid ${C.border}`, borderRadius: 20, padding: "32px 40px", cursor: "pointer", textAlign: "center", fontFamily: "inherit", minWidth: 180, color: C.textPrimary, transition: "all .18s" }}
+                    onMouseEnter={(e) => { e.currentTarget.style.borderColor = u.color; e.currentTarget.style.transform = "translateY(-4px)"; e.currentTarget.style.boxShadow = `0 12px 36px ${u.color}44`; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "none"; }}>
+                    <div style={{ fontSize: 56, marginBottom: 12 }}>{u.emoji}</div>
+                    <div style={{ fontWeight: 800, fontSize: 22, marginBottom: 8 }}>{u.name}</div>
+                    <div style={{ color: C.textMuted, fontSize: 13 }}>{st.total} слов · {st.learned} изучено</div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    function MainApp({ userId, onLogout }) {
+      const user = USERS.find((u) => u.id === userId);
+      const [words, setWords] = useState([]);
+      const [loadingWords, setLoadingWords] = useState(true);
+      const [tab, setTab] = useState("practice");
+
+      const [formEn, setFormEn] = useState("");
+      const [formRu, setFormRu] = useState("");
+      const [formErr, setFormErr] = useState("");
+
+      // Состояния для Inline-редактирования слов
+      const [editingId, setEditingId] = useState(null);
+      const [editEn, setEditEn] = useState("");
+      const [editRu, setEditRu] = useState("");
+
+      const [direction, setDirection] = useState("ru→en");
+      const [queue, setQueue] = useState([]);
+      const [current, setCurrent] = useState(null);
+      const [answer, setAnswer] = useState("");
+      const [result, setResult] = useState(null);
+      const [hint, setHint] = useState(false);
+      const [sessionRight, setSessionRight] = useState(0);
+      const [sessionWrong, setSessionWrong] = useState(0);
+
+      useEffect(() => {
+        async function loadWords() {
+          setLoadingWords(true);
+          const { data, error } = await supabase.from('wordflow_words').select('*').eq('user_id', userId);
+          if (!error && data) {
+            const mappedWords = data.map(w => ({
+              id: w.id, en: w.en, ru: w.ru, successCount: w.success_count,
+              learned: w.learned, totalRight: w.total_right, totalWrong: w.total_wrong
+            }));
+            setWords(mappedWords);
+            initQueue(mappedWords);
+          }
+          setLoadingWords(false);
+        }
+        loadWords();
+      }, [userId]);
+
+      const activeWords = words.filter((w) => !w.learned);
+      const learnedWords = words.filter((w) => w.learned);
+
+      const initQueue = (currentWords) => {
+        const active = currentWords.filter((w) => !w.learned);
+        if (active.length === 0) { setCurrent(null); return; }
+        const q = shuffle(active.map((w) => w.id));
+        setQueue(q.slice(1));
+        setCurrent(q[0]);
+      };
+
+      useEffect(() => {
+        if (tab !== "practice") return;
+        initQueue(words);
+        setAnswer("");
+        setResult(null);
+        setHint(false);
+      }, [tab]);
+
+      const nextWord = (updatedWords) => {
+        const active = (updatedWords ?? words).filter((w) => !w.learned);
+        if (active.length === 0) { setCurrent(null); return; }
+        let q = queue.filter((id) => active.find((w) => w.id === id));
+        if (q.length === 0) q = shuffle(active.map((w) => w.id));
+        const nextId = q[0] ?? shuffle(active.map((w) => w.id))[0];
+        setQueue(q.slice(1));
+        setCurrent(nextId);
+        setAnswer("");
+        setResult(null);
+        setHint(false);
+      };
+
+      const checkAnswer = async () => {
+        if (!current || result) return;
+        const word = words.find((w) => w.id === current);
+        if (!word) return;
+        const correct = direction === "ru→en" ? word.en : word.ru;
+        const isCorrect = norm(answer) === norm(correct);
+
+        if (isCorrect) {
+          setSessionRight((n) => n + 1);
+          setResult("correct");
+          const newCount = (word.successCount || 0) + 1;
+          const learnedStatus = newCount >= LEARNED_THRESHOLD;
+          
+          await supabase.from('wordflow_words').update({ success_count: newCount, learned: learnedStatus, total_right: (word.totalRight || 0) + 1 }).eq('id', current);
+          setWords((prev) => prev.map((w) => w.id === current ? { ...w, successCount: newCount, learned: learnedStatus, totalRight: (w.totalRight || 0) + 1 } : w));
+        } else {
+          setSessionWrong((n) => n + 1);
+          setResult("wrong");
+
+          await supabase.from('wordflow_words').update({ success_count: 0, total_wrong: (word.totalWrong || 0) + 1 }).eq('id', current);
+          setWords((prev) => prev.map((w) => w.id === current ? { ...w, successCount: 0, totalWrong: (w.totalWrong || 0) + 1 } : w));
+        }
+      };
+
+      // ФУНКЦИОНАЛЬНОСТЬ: Кнопка "Не помню"
+      const handleDontRemember = async () => {
+        if (!current || result) return;
+        const word = words.find((w) => w.id === current);
+        if (!word) return;
+
+        setSessionWrong((n) => n + 1);
+        setResult("dont_remember"); // специальный статус для отображения
+
+        // Сбрасываем прогресс в Supabase, увеличиваем количество ошибок
+        await supabase.from('wordflow_words').update({ success_count: 0, total_wrong: (word.totalWrong || 0) + 1 }).eq('id', current);
+        
+        // Обновляем локальный стейт слов
+        setWords((prev) => prev.map((w) => w.id === current ? { ...w, successCount: 0, totalWrong: (w.totalWrong || 0) + 1 } : w));
+
+        // Хитрая механика: пушим это слово обратно в очередь, но не сразу следующим, а чуть дальше (например, 3-м или 4-м по счету)
+        setQueue((prevQueue) => {
+          const newQueue = [...prevQueue];
+          const insertPosition = Math.min(newQueue.length, 3); // вставим через 3 слова (или в конец, если слов мало)
+          newQueue.splice(insertPosition, 0, current);
+          return newQueue;
+        });
+      };
+
+      const addWord = async () => {
+        const en = formEn.trim(); const ru = formRu.trim();
+        if (!en || !ru) { setFormErr("Заполни оба поля"); return; }
+        if (words.find((w) => norm(w.en) === norm(en))) { setFormErr("Такое слово уже есть"); return; }
+
+        const { data, error } = await supabase.from('wordflow_words').insert([{ user_id: userId, en, ru }]).select();
+        if (!error && data) {
+          const inserted = data[0];
+          setWords((prev) => [...prev, { id: inserted.id, en: inserted.en, ru: inserted.ru, successCount: 0, learned: false, totalRight: 0, totalWrong: 0 }]);
+          setFormEn(""); setFormRu(""); setFormErr("");
+        }
+      };
+
+      // ФУНКЦИОНАЛЬНОСТЬ: Сохранение измененного слова в БД
+      const saveEditedWord = async (id) => {
+        const en = editEn.trim();
+        const ru = editRu.trim();
+        if (!en || !ru) return;
+
+        const { error } = await supabase.from('wordflow_words').update({ en, ru }).eq('id', id);
+        if (!error) {
+          setWords((prev) => prev.map((w) => w.id === id ? { ...w, en, ru } : w));
+          setEditingId(null);
+        }
+      };
+
+      const startEditing = (word) => {
+        setEditingId(word.id);
+        setEditEn(word.en);
+        setEditRu(word.ru);
+      };
+
+      const deleteWord = async (id) => {
+        const { error } = await supabase.from('wordflow_words').delete().eq('id', id);
+        if (!error) {
+          setWords((prev) => {
+            const updated = prev.filter((w) => w.id !== id);
+            if (current === id) nextWord(updated);
+            return updated;
+          });
+        }
+      };
+
+      const restoreWord = async (id) => {
+        const { error } = await supabase.from('wordflow_words').update({ learned: false, success_count: 0 }).eq('id', id);
+        if (!error) {
+          setWords((prev) => prev.map((w) => w.id === id ? { ...w, learned: false, successCount: 0 } : w));
+        }
+      };
+
+      const currentWord = words.find((w) => w.id === current);
+      const question     = currentWord ? (direction === "ru→en" ? currentWord.ru : currentWord.en) : "";
+      const correctAnswer= currentWord ? (direction === "ru→en" ? currentWord.en : currentWord.ru) : "";
+
+      if (loadingWords) {
+        return <div style={{ background: C.bg, minHeight: "100vh", color: C.textSecondary, display: "flex", alignItems: "center", justifyContent: "center" }}>Синхронизация с Supabase...</div>;
+      }
+
+      return (
+        <div style={{ background: C.bg, minHeight: "100vh", color: C.textPrimary }}>
+          {/* Шапка */}
+          <div style={{ background: C.surface, borderBottom: `1px solid ${C.border}`, padding: "12px 16px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ fontSize: 24 }}>{user.emoji}</div>
+              <div>
+                <div style={{ fontWeight: 800, fontSize: 16, lineHeight: 1.1 }}>{user.name}</div>
+                <div style={{ fontSize: 11, color: C.textMuted }}>{activeWords.length} активных · {learnedWords.length} изучено</div>
+              </div>
+            </div>
+            <button onClick={onLogout} style={S.btn({ background: C.card, color: C.textSecondary, border: `1px solid ${C.border}`, padding: "7px 12px", fontSize: 13 })}><Icons.logout /> Сменить</button>
+          </div>
+
+          {/* Навигация */}
+          <div style={{ display: "flex", background: C.surface, borderBottom: `1px solid ${C.border}` }}>
+            {[
+              { id: "practice", label: "Практика", icon: <Icons.book /> },
+              { id: "list",     label: "Слова",    icon: <Icons.list /> },
+              { id: "learned",  label: "Изученные", icon: <Icons.star /> },
+            ].map((t) => (
+              <button key={t.id} onClick={() => setTab(t.id)} style={{ flex: 1, background: "none", border: "none", cursor: "pointer", padding: "12px 8px", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, color: tab === t.id ? user.color : C.textSecondary, borderBottom: `2px solid ${tab === t.id ? user.color : "transparent"}`, fontFamily: "inherit", fontSize: 13, fontWeight: 600, transition: "all .15s" }}>
+                {t.icon} {t.label}
+              </button>
+            ))}
+          </div>
+
+          <div style={{ maxWidth: 520, margin: "0 auto", padding: "20px 16px" }}>
+            {/* ════ ПРАКТИКА ════ */}
+            {tab === "practice" && (
+              <div>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+                  <button onClick={() => { setDirection(d => d === "ru→en" ? "en→ru" : "ru→en"); setResult(null); setAnswer(""); setHint(false); }} style={S.btn({ background: C.card, color: C.textPrimary, border: `1px solid ${C.border}` })}><Icons.swap /> {direction === "ru→en" ? "РУ → EN" : "EN → РУ"}</button>
+                  <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                    <span style={{ fontSize: 14, color: C.green, fontWeight: 700 }}>✓ {sessionRight}</span>
+                    <span style={{ fontSize: 14, color: C.red, fontWeight: 700 }}>✗ {sessionWrong}</span>
+                    <button onClick={() => { setSessionRight(0); setSessionWrong(0); nextWord(); }} style={{ background: "none", border: "none", cursor: "pointer", color: C.textMuted, padding: 4, display: "flex" }}><Icons.refresh /></button>
+                  </div>
+                </div>
+
+                {activeWords.length === 0 ? (
+                  <div style={{ textAlign: "center", padding: "60px 20px" }}>
+                    <div style={{ fontSize: 52, marginBottom: 16 }}>{words.length === 0 ? "📝" : "🎉"}</div>
+                    <div style={{ fontWeight: 700, fontSize: 20, marginBottom: 8 }}>{words.length === 0 ? "Список пуст" : "Все слова изучены!"}</div>
+                  </div>
+                ) : currentWord ? (
+                  <div>
+                    <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10, gap: 4 }}>
+                      {Array.from({ length: LEARNED_THRESHOLD }).map((_, i) => (
+                        <div key={i} style={{ width: 30, height: 6, borderRadius: 3, background: i < (currentWord.successCount || 0) ? user.color : C.border, transition: "background .3s" }} />
+                      ))}
+                    </div>
+
+                    <div style={{ background: C.card, border: `1.5px solid ${result === "correct" ? C.green : (result === "wrong" || result === "dont_remember") ? C.red : C.border}`, borderRadius: 16, padding: "36px 28px", textAlign: "center", marginBottom: 16 }}>
+                      <div style={{ fontSize: 11, color: C.textMuted, textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 10 }}>{direction === "ru→en" ? "Переведи на английский" : "Переведи на русский"}</div>
+                      <div style={{ fontSize: 26, fontWeight: 800, letterSpacing: "-0.5px", lineHeight: 1.3 }}>{question}</div>
+
+                      {result && (
+                        <div style={{ marginTop: 20, padding: "10px 16px", borderRadius: 10, background: result === "correct" ? C.greenSoft : C.redSoft, color: result === "correct" ? C.green : C.red, fontWeight: 600, fontSize: 15 }}>
+                          {result === "correct" ? "✓ Правильно!" : result === "dont_remember" ? `В следующий раз получится! Ответ: ${correctAnswer}` : `✗ Ошибка. Правильный ответ: ${correctAnswer}`}
+                        </div>
+                      )}
+                    </div>
+
+                    {!result && (
+                      <div style={{ marginBottom: 12 }}>
+                        <input maxLength={80} value={answer} onChange={(e) => setAnswer(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") checkAnswer(); }} placeholder="Введи перевод…" style={{ ...S.input, fontSize: 17, padding: "14px 16px", textAlign: "center" }} autoFocus />
+                      </div>
+                    )}
+
+                    {!result && (
+                      <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
+                        <button onClick={handleDontRemember} style={S.btn({ flex: 1, background: C.redSoft, color: C.red, border: `1px solid ${C.red}33`, justifyContent: "center" })}>
+                          <Icons.eyeOff /> Не помню
+                        </button>
+                        <button onClick={checkAnswer} style={S.btn({ flex: 2, background: user.color, color: "#fff", justifyContent: "center", fontSize: 15 })}>
+                          Проверить
+                        </button>
+                      </div>
+                    )}
+
+                    {!result && (
+                      <button onClick={() => setHint(true)} style={S.btn({ width: "100%", background: C.card, color: C.textSecondary, border: `1px solid ${C.border}`, justifyContent: "center", marginBottom: 12 })}>👁 Подсказать первую букву</button>
+                    )}
+
+                    {hint && !result && (
+                      <div style={{ background: C.yellowSoft, border: `1px solid ${C.yellow}`, borderRadius: 10, padding: "10px 14px", marginBottom: 12, color: C.yellow, fontSize: 14, fontWeight: 600, textAlign: "center" }}>Начинается на: «{correctAnswer.slice(0, 2)}…»</div>
+                    )}
+
+                    {result && (
+                      <button onClick={() => nextWord()} style={S.btn({ width: "100%", justifyContent: "center", background: user.color, color: "#fff", fontSize: 15, padding: "13px" })}>Следующее слово →</button>
+                    )}
+                  </div>
+                ) : null}
+              </div>
+            )}
+
+            {/* ════ СПИСОК СЛОВ (С РЕДАКТИРОВАНИЕМ) ════ */}
+            {tab === "list" && (
+              <div>
+                <div style={{ background: C.card, border: `1.5px solid ${C.border}`, borderRadius: 14, padding: 16, marginBottom: 20 }}>
+                  <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 12, color: C.textSecondary, textTransform: "uppercase", letterSpacing: 1 }}>Добавить слово или фразу</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                    <input maxLength={80} value={formEn} onChange={(e) => setFormEn(e.target.value)} placeholder="English" style={S.input} />
+                    <input maxLength={80} value={formRu} onChange={(e) => setFormRu(e.target.value)} placeholder="Русский" style={S.input} onKeyDown={(e) => e.key === "Enter" && addWord()} />
+                    {formErr && <div style={{ color: C.red, fontSize: 13 }}>{formErr}</div>}
+                    <button onClick={addWord} style={S.btn({ background: user.color, color: "#fff", justifyContent: "center" })}><Icons.plus /> Добавить</button>
+                  </div>
+                </div>
+
+                {activeWords.length === 0 ? (
+                  <div style={{ textAlign: "center", color: C.textMuted, padding: "40px 0" }}>Список пуст.</div>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {activeWords.map((w) => (
+                      <div key={w.id} style={{ background: C.card, border: `1.5px solid ${editingId === w.id ? user.color : C.border}`, borderRadius: 12, padding: "12px 14px", display: "flex", alignItems: "center", gap: 12 }}>
+                        
+                        {editingId === w.id ? (
+                          // Режим редактирования
+                          <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 6 }}>
+                            <input value={editEn} onChange={(e) => setEditEn(e.target.value)} style={{ ...S.input, padding: "6px 10px" }} />
+                            <input value={editRu} onChange={(e) => setEditRu(e.target.value)} style={{ ...S.input, padding: "6px 10px" }} onKeyDown={(e) => e.key === "Enter" && saveEditedWord(w.id)} />
+                          </div>
+                        ) : (
+                          // Обычный режим просмотра
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontWeight: 700, fontSize: 15, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{w.en}</div>
+                            <div style={{ color: C.textSecondary, fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{w.ru}</div>
+                          </div>
+                        )}
+
+                        <div style={{ display: "flex", gap: 3, flexShrink: 0 }}>
+                          {Array.from({ length: LEARNED_THRESHOLD }).map((_, i) => (
+                            <div key={i} style={{ width: 8, height: 8, borderRadius: "50%", background: i < (w.successCount || 0) ? user.color : C.border }} />
+                          ))}
+                        </div>
+
+                        <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+                          {editingId === w.id ? (
+                            <button onClick={() => saveEditedWord(w.id)} style={{ background: C.greenSoft, border: "none", cursor: "pointer", color: C.green, padding: 6, borderRadius: 6, display: "flex" }} title="Сохранить">
+                              <Icons.save />
+                            </button>
+                          ) : (
+                            <button onClick={() => startEditing(w)} style={{ background: "none", border: "none", cursor: "pointer", color: C.textMuted, padding: 6, borderRadius: 6, display: "flex" }} title="Редактировать">
+                              <Icons.edit />
+                            </button>
+                          )}
+                          <button onClick={() => deleteWord(w.id)} style={{ background: "none", border: "none", cursor: "pointer", color: C.textMuted, padding: 6, borderRadius: 6, display: "flex" }} title="Удалить">
+                            <Icons.trash />
+                          </button>
+                        </div>
+
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ════ ИЗУЧЕННЫЕ ════ */}
+            {tab === "learned" && (
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 16, color: C.textSecondary }}>Изученные слова ({learnedWords.length})</div>
+                {learnedWords.length === 0 ? (
+                  <div style={{ textAlign: "center", color: C.textMuted, padding: "40px 0" }}>Пока пусто.</div>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {learnedWords.map((w) => (
+                      <div key={w.id} style={{ background: C.card, border: `1.5px solid ${C.greenSoft}`, borderRadius: 12, padding: "12px 14px", display: "flex", alignItems: "center", gap: 12 }}>
+                        <div style={{ color: C.green, flexShrink: 0 }}><Icons.star /></div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontWeight: 700, fontSize: 15, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{w.en}</div>
+                          <div style={{ color: C.textSecondary, fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{w.ru}</div>
+                        </div>
+                        <button onClick={() => restoreWord(w.id)} style={S.btn({ background: C.surface, color: C.textSecondary, border: `1px solid ${C.border}`, padding: "6px 10px", fontSize: 12, gap: 4 })}><Icons.repeat /> Заново</button>
+                        <button onClick={() => deleteWord(w.id)} style={{ background: "none", border: "none", cursor: "pointer", color: C.textMuted, padding: 4, borderRadius: 6, display: "flex" }}><Icons.trash /></button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    function App() {
+      const [userId, setUserId] = useState(null);
+      if (!userId) return <LoginScreen onSelect={setUserId} />;
+      return <MainApp key={userId} userId={userId} onLogout={() => setUserId(null)} />;
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
