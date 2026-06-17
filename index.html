@@ -21,7 +21,8 @@
 
     const SUPABASE_URL = "https://ovohvlhrvdqggyubzpyt.supabase.co";
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im92b2h2bGhydmRxZ2d5dWJ6cHl0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEzNTEyODAsImV4cCI6MjA5NjkyNzI4MH0.-_3ZffF4lQB_8JQvfUI9MgMs2ujOxHTThPkPoPx3p_o";
-    const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+   // const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+   const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
     const C = {
       bg: "#0F1117", surface: "#181C27", card: "#1E2333", border: "#2A3050",
@@ -135,7 +136,7 @@ const LEARNED_THRESHOLD = 5;
       useEffect(() => {
         async function fetchGlobalStats() {
           try {
-            const { data, error } = await supabase.from('wordflow_words').select('user_id, learned');
+            const { data, error } = await db.from('wordflow_words').select('user_id, learned');
             if (error) throw error;
             const computed = USERS.reduce((acc, u) => {
               const userWords = data ? data.filter(w => w.user_id === u.id) : [];
@@ -210,7 +211,7 @@ const LEARNED_THRESHOLD = 5;
           }
 
           try {
-            const { data, error } = await supabase.from('wordflow_words').select('*').eq('user_id', userId);
+            const { data, error } = await db.from('wordflow_words').select('*').eq('user_id', userId);
             if (!error && data) {
               const mappedWords = data.map(w => ({
                 id: w.id, en: w.en, ru: w.ru, successCount: w.success_count,
@@ -272,13 +273,13 @@ const LEARNED_THRESHOLD = 5;
           const newCount = (word.successCount || 0) + 1;
           const learnedStatus = newCount >= LEARNED_THRESHOLD;
           
-          await supabase.from('wordflow_words').update({ success_count: newCount, learned: learnedStatus, total_right: (word.totalRight || 0) + 1 }).eq('id', current);
+          await db.from('wordflow_words').update({ success_count: newCount, learned: learnedStatus, total_right: (word.totalRight || 0) + 1 }).eq('id', current);
           setWords((prev) => prev.map((w) => w.id === current ? { ...w, successCount: newCount, learned: learnedStatus, totalRight: (w.totalRight || 0) + 1 } : w));
         } else {
           setSessionWrong((n) => n + 1);
           setResult("wrong");
 
-          await supabase.from('wordflow_words').update({ success_count: 0, total_wrong: (word.totalWrong || 0) + 1 }).eq('id', current);
+          await db.from('wordflow_words').update({ success_count: 0, total_wrong: (word.totalWrong || 0) + 1 }).eq('id', current);
           setWords((prev) => prev.map((w) => w.id === current ? { ...w, successCount: 0, totalWrong: (w.totalWrong || 0) + 1 } : w));
         }
       };
@@ -293,7 +294,7 @@ const LEARNED_THRESHOLD = 5;
         setResult("dont_remember"); // специальный статус для отображения
 
         // Сбрасываем прогресс в Supabase, увеличиваем количество ошибок
-        await supabase.from('wordflow_words').update({ success_count: 0, total_wrong: (word.totalWrong || 0) + 1 }).eq('id', current);
+        await db.from('wordflow_words').update({ success_count: 0, total_wrong: (word.totalWrong || 0) + 1 }).eq('id', current);
         
         // Обновляем локальный стейт слов
         setWords((prev) => prev.map((w) => w.id === current ? { ...w, successCount: 0, totalWrong: (w.totalWrong || 0) + 1 } : w));
@@ -312,7 +313,7 @@ const LEARNED_THRESHOLD = 5;
         if (!en || !ru) { setFormErr("Заполни оба поля"); return; }
         if (words.find((w) => norm(w.en) === norm(en))) { setFormErr("Такое слово уже есть"); return; }
 
-        const { data, error } = await supabase.from('wordflow_words').insert([{ user_id: userId, en, ru }]).select();
+        const { data, error } = await db.from('wordflow_words').insert([{ user_id: userId, en, ru }]).select();
         if (!error && data) {
           const inserted = data[0];
           setWords((prev) => [...prev, { id: inserted.id, en: inserted.en, ru: inserted.ru, successCount: 0, learned: false, totalRight: 0, totalWrong: 0 }]);
@@ -326,7 +327,7 @@ const LEARNED_THRESHOLD = 5;
         const ru = editRu.trim();
         if (!en || !ru) return;
 
-        const { error } = await supabase.from('wordflow_words').update({ en, ru }).eq('id', id);
+        const { error } = await db.from('wordflow_words').update({ en, ru }).eq('id', id);
         if (!error) {
           setWords((prev) => prev.map((w) => w.id === id ? { ...w, en, ru } : w));
           setEditingId(null);
@@ -340,7 +341,7 @@ const LEARNED_THRESHOLD = 5;
       };
 
       const deleteWord = async (id) => {
-        const { error } = await supabase.from('wordflow_words').delete().eq('id', id);
+        const { error } = await db.from('wordflow_words').delete().eq('id', id);
         if (!error) {
           setWords((prev) => {
             const updated = prev.filter((w) => w.id !== id);
@@ -351,7 +352,7 @@ const LEARNED_THRESHOLD = 5;
       };
 
       const restoreWord = async (id) => {
-        const { error } = await supabase.from('wordflow_words').update({ learned: false, success_count: 0 }).eq('id', id);
+        const { error } = await db.from('wordflow_words').update({ learned: false, success_count: 0 }).eq('id', id);
         if (!error) {
           setWords((prev) => prev.map((w) => w.id === id ? { ...w, learned: false, successCount: 0 } : w));
         }
@@ -362,7 +363,7 @@ const LEARNED_THRESHOLD = 5;
       const correctAnswer= currentWord ? (direction === "ru→en" ? currentWord.en : currentWord.ru) : "";
 
       if (loadingWords) {
-        return <div style={{ background: C.bg, minHeight: "100vh", color: C.textSecondary, display: "flex", alignItems: "center", justifyContent: "center" }}>Синхронизация с Supabase...</div>;
+        return <div style={{ background: C.bg, minHeight: "100vh", color: C.textSecondary, display: "flex", alignItems: "center", justifyContent: "center" }}>Синхронизация с ...</div>;
       }
 
       return (
