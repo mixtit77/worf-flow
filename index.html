@@ -4,10 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>WordFlow</title>
-  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <script src="https://unpkg.com/react@18.2.0/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18.2.0/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone@7.23.10/babel.min.js"></script>
+  <script src="https://unpkg.com/@supabase/supabase-js@2.39.7/dist/umd/supabase.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
     body { margin: 0; background-color: #0F1117; font-family: 'Inter', system-ui, sans-serif; }
@@ -15,29 +15,8 @@
 </head>
 <body>
   <div id="root"></div>
-  <div id="debug" style="position:fixed;bottom:0;left:0;right:0;background:#1E2333;color:#F0F2FF;font-family:monospace;font-size:13px;padding:12px;z-index:9999;max-height:200px;overflow:auto;border-top:2px solid #6C63FF"></div>
 
-  <script>
-    function dbg(msg) {
-      var el = document.getElementById("debug");
-      if (el) el.innerHTML += msg + "<br>";
-      console.log(msg);
-    }
-    window.addEventListener("load", function() {
-      dbg("✓ window loaded");
-      dbg("window.supabase type: " + typeof window.supabase);
-      dbg("window.supabase keys: " + (window.supabase ? Object.keys(window.supabase).join(", ") : "N/A"));
-      try {
-        var client = window.supabase.createClient("https://test.supabase.co", "test");
-        dbg("✓ createClient works: " + typeof client);
-      } catch(e) {
-        dbg("✗ createClient error: " + e.message);
-      }
-      dbg("React type: " + typeof React);
-      dbg("ReactDOM type: " + typeof ReactDOM);
-    });
-  </script>
-  <script type="text/babel">
+  <script type="text/babel" data-presets="react">
     const { useState, useEffect } = React;
 
     const SUPABASE_URL = "https://ovohvlhrvdqggyubzpyt.supabase.co";
@@ -51,7 +30,7 @@
       textPrimary: "#F0F2FF", textSecondary: "#8892B0", textMuted: "#4A5180",
     };
 
-const LEARNED_THRESHOLD = 5;
+    const LEARNED_THRESHOLD = 5;
     const USERS = [
       { id: "misha", name: "Миша", emoji: "👨‍💻", color: "#6C63FF" },
       { id: "rita",  name: "Рита",  emoji: "👩‍🎨", color: "#FF6B9D" },
@@ -180,7 +159,8 @@ const LEARNED_THRESHOLD = 5;
               {USERS.map((u) => {
                 const st = stats[u.id] || { total: 0, learned: 0 };
                 return (
-                  <button key={u.id} onClick={() => onSelect(u.id)} style={{ background: C.surface, border: `2px solid ${C.border}`, borderRadius: 20, padding: "32px 40px", cursor: "pointer", textAlign: "center", fontFamily: "inherit", minWidth: 180, color: C.textPrimary, transition: "all .18s" }}
+                  <button key={u.id} onClick={() => onSelect(u.id)}
+                    style={{ background: C.surface, border: `2px solid ${C.border}`, borderRadius: 20, padding: "32px 40px", cursor: "pointer", textAlign: "center", fontFamily: "inherit", minWidth: 180, color: C.textPrimary, transition: "all .18s" }}
                     onMouseEnter={(e) => { e.currentTarget.style.borderColor = u.color; e.currentTarget.style.transform = "translateY(-4px)"; e.currentTarget.style.boxShadow = `0 12px 36px ${u.color}44`; }}
                     onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "none"; }}>
                     <div style={{ fontSize: 56, marginBottom: 12 }}>{u.emoji}</div>
@@ -205,7 +185,6 @@ const LEARNED_THRESHOLD = 5;
       const [formRu, setFormRu] = useState("");
       const [formErr, setFormErr] = useState("");
 
-      // Состояния для Inline-редактирования слов
       const [editingId, setEditingId] = useState(null);
       const [editEn, setEditEn] = useState("");
       const [editRu, setEditRu] = useState("");
@@ -218,18 +197,15 @@ const LEARNED_THRESHOLD = 5;
       const [hint, setHint] = useState(false);
       const [sessionRight, setSessionRight] = useState(0);
       const [sessionWrong, setSessionWrong] = useState(0);
-      
-     useEffect(() => {
+
+      useEffect(() => {
         async function loadWords() {
           setLoadingWords(true);
-          
-          // Если зашел гость, не мучаем Supabase, а даем пустой список
           if (userId === "guest") {
             setWords([]);
             setLoadingWords(false);
             return;
           }
-
           try {
             const { data, error } = await db.from('wordflow_words').select('*').eq('user_id', userId);
             if (!error && data) {
@@ -240,9 +216,7 @@ const LEARNED_THRESHOLD = 5;
               setWords(mappedWords);
               initQueue(mappedWords);
             }
-          } catch(e) {
-            console.error(e);
-          }
+          } catch(e) { console.error(e); }
           setLoadingWords(false);
         }
         loadWords();
@@ -292,37 +266,27 @@ const LEARNED_THRESHOLD = 5;
           setResult("correct");
           const newCount = (word.successCount || 0) + 1;
           const learnedStatus = newCount >= LEARNED_THRESHOLD;
-          
           await db.from('wordflow_words').update({ success_count: newCount, learned: learnedStatus, total_right: (word.totalRight || 0) + 1 }).eq('id', current);
           setWords((prev) => prev.map((w) => w.id === current ? { ...w, successCount: newCount, learned: learnedStatus, totalRight: (w.totalRight || 0) + 1 } : w));
         } else {
           setSessionWrong((n) => n + 1);
           setResult("wrong");
-
           await db.from('wordflow_words').update({ success_count: 0, total_wrong: (word.totalWrong || 0) + 1 }).eq('id', current);
           setWords((prev) => prev.map((w) => w.id === current ? { ...w, successCount: 0, totalWrong: (w.totalWrong || 0) + 1 } : w));
         }
       };
 
-      // ФУНКЦИОНАЛЬНОСТЬ: Кнопка "Не помню"
       const handleDontRemember = async () => {
         if (!current || result) return;
         const word = words.find((w) => w.id === current);
         if (!word) return;
-
         setSessionWrong((n) => n + 1);
-        setResult("dont_remember"); // специальный статус для отображения
-
-        // Сбрасываем прогресс в Supabase, увеличиваем количество ошибок
+        setResult("dont_remember");
         await db.from('wordflow_words').update({ success_count: 0, total_wrong: (word.totalWrong || 0) + 1 }).eq('id', current);
-        
-        // Обновляем локальный стейт слов
         setWords((prev) => prev.map((w) => w.id === current ? { ...w, successCount: 0, totalWrong: (w.totalWrong || 0) + 1 } : w));
-
-        // Хитрая механика: пушим это слово обратно в очередь, но не сразу следующим, а чуть дальше (например, 3-м или 4-м по счету)
         setQueue((prevQueue) => {
           const newQueue = [...prevQueue];
-          const insertPosition = Math.min(newQueue.length, 3); // вставим через 3 слова (или в конец, если слов мало)
+          const insertPosition = Math.min(newQueue.length, 3);
           newQueue.splice(insertPosition, 0, current);
           return newQueue;
         });
@@ -332,7 +296,6 @@ const LEARNED_THRESHOLD = 5;
         const en = formEn.trim(); const ru = formRu.trim();
         if (!en || !ru) { setFormErr("Заполни оба поля"); return; }
         if (words.find((w) => norm(w.en) === norm(en))) { setFormErr("Такое слово уже есть"); return; }
-
         const { data, error } = await db.from('wordflow_words').insert([{ user_id: userId, en, ru }]).select();
         if (!error && data) {
           const inserted = data[0];
@@ -341,12 +304,9 @@ const LEARNED_THRESHOLD = 5;
         }
       };
 
-      // ФУНКЦИОНАЛЬНОСТЬ: Сохранение измененного слова в БД
       const saveEditedWord = async (id) => {
-        const en = editEn.trim();
-        const ru = editRu.trim();
+        const en = editEn.trim(); const ru = editRu.trim();
         if (!en || !ru) return;
-
         const { error } = await db.from('wordflow_words').update({ en, ru }).eq('id', id);
         if (!error) {
           setWords((prev) => prev.map((w) => w.id === id ? { ...w, en, ru } : w));
@@ -379,15 +339,15 @@ const LEARNED_THRESHOLD = 5;
       };
 
       const currentWord = words.find((w) => w.id === current);
-      const question     = currentWord ? (direction === "ru→en" ? currentWord.ru : currentWord.en) : "";
-      const correctAnswer= currentWord ? (direction === "ru→en" ? currentWord.en : currentWord.ru) : "";
+      const question      = currentWord ? (direction === "ru→en" ? currentWord.ru : currentWord.en) : "";
+      const correctAnswer = currentWord ? (direction === "ru→en" ? currentWord.en : currentWord.ru) : "";
 
       if (loadingWords) {
-        return <div style={{ background: C.bg, minHeight: "100vh", color: C.textSecondary, display: "flex", alignItems: "center", justifyContent: "center" }}>Синхронизация с Supabase...</div>;
+        return <div style={{ background: C.bg, minHeight: "100vh", color: C.textSecondary, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "Inter, sans-serif" }}>Синхронизация...</div>;
       }
 
       return (
-        <div style={{ background: C.bg, minHeight: "100vh", color: C.textPrimary }}>
+        <div style={{ background: C.bg, minHeight: "100vh", color: C.textPrimary, fontFamily: "Inter, system-ui, sans-serif" }}>
           {/* Шапка */}
           <div style={{ background: C.surface, borderBottom: `1px solid ${C.border}`, padding: "12px 16px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -414,7 +374,8 @@ const LEARNED_THRESHOLD = 5;
           </div>
 
           <div style={{ maxWidth: 520, margin: "0 auto", padding: "20px 16px" }}>
-            {/* ════ ПРАКТИКА ════ */}
+
+            {/* ПРАКТИКА */}
             {tab === "practice" && (
               <div>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
@@ -442,7 +403,6 @@ const LEARNED_THRESHOLD = 5;
                     <div style={{ background: C.card, border: `1.5px solid ${result === "correct" ? C.green : (result === "wrong" || result === "dont_remember") ? C.red : C.border}`, borderRadius: 16, padding: "36px 28px", textAlign: "center", marginBottom: 16 }}>
                       <div style={{ fontSize: 11, color: C.textMuted, textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 10 }}>{direction === "ru→en" ? "Переведи на английский" : "Переведи на русский"}</div>
                       <div style={{ fontSize: 26, fontWeight: 800, letterSpacing: "-0.5px", lineHeight: 1.3 }}>{question}</div>
-
                       {result && (
                         <div style={{ marginTop: 20, padding: "10px 16px", borderRadius: 10, background: result === "correct" ? C.greenSoft : C.redSoft, color: result === "correct" ? C.green : C.red, fontWeight: 600, fontSize: 15 }}>
                           {result === "correct" ? "✓ Правильно!" : result === "dont_remember" ? `В следующий раз получится! Ответ: ${correctAnswer}` : `✗ Ошибка. Правильный ответ: ${correctAnswer}`}
@@ -458,12 +418,8 @@ const LEARNED_THRESHOLD = 5;
 
                     {!result && (
                       <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
-                        <button onClick={handleDontRemember} style={S.btn({ flex: 1, background: C.redSoft, color: C.red, border: `1px solid ${C.red}33`, justifyContent: "center" })}>
-                          <Icons.eyeOff /> Не помню
-                        </button>
-                        <button onClick={checkAnswer} style={S.btn({ flex: 2, background: user.color, color: "#fff", justifyContent: "center", fontSize: 15 })}>
-                          Проверить
-                        </button>
+                        <button onClick={handleDontRemember} style={S.btn({ flex: 1, background: C.redSoft, color: C.red, border: `1px solid ${C.red}33`, justifyContent: "center" })}><Icons.eyeOff /> Не помню</button>
+                        <button onClick={checkAnswer} style={S.btn({ flex: 2, background: user.color, color: "#fff", justifyContent: "center", fontSize: 15 })}>Проверить</button>
                       </div>
                     )}
 
@@ -483,7 +439,7 @@ const LEARNED_THRESHOLD = 5;
               </div>
             )}
 
-            {/* ════ СПИСОК СЛОВ (С РЕДАКТИРОВАНИЕМ) ════ */}
+            {/* СПИСОК СЛОВ */}
             {tab === "list" && (
               <div>
                 <div style={{ background: C.card, border: `1.5px solid ${C.border}`, borderRadius: 14, padding: 16, marginBottom: 20 }}>
@@ -502,42 +458,30 @@ const LEARNED_THRESHOLD = 5;
                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                     {activeWords.map((w) => (
                       <div key={w.id} style={{ background: C.card, border: `1.5px solid ${editingId === w.id ? user.color : C.border}`, borderRadius: 12, padding: "12px 14px", display: "flex", alignItems: "center", gap: 12 }}>
-                        
                         {editingId === w.id ? (
-                          // Режим редактирования
                           <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 6 }}>
                             <input value={editEn} onChange={(e) => setEditEn(e.target.value)} style={{ ...S.input, padding: "6px 10px" }} />
                             <input value={editRu} onChange={(e) => setEditRu(e.target.value)} style={{ ...S.input, padding: "6px 10px" }} onKeyDown={(e) => e.key === "Enter" && saveEditedWord(w.id)} />
                           </div>
                         ) : (
-                          // Обычный режим просмотра
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{ fontWeight: 700, fontSize: 15, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{w.en}</div>
                             <div style={{ color: C.textSecondary, fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{w.ru}</div>
                           </div>
                         )}
-
                         <div style={{ display: "flex", gap: 3, flexShrink: 0 }}>
                           {Array.from({ length: LEARNED_THRESHOLD }).map((_, i) => (
                             <div key={i} style={{ width: 8, height: 8, borderRadius: "50%", background: i < (w.successCount || 0) ? user.color : C.border }} />
                           ))}
                         </div>
-
                         <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
                           {editingId === w.id ? (
-                            <button onClick={() => saveEditedWord(w.id)} style={{ background: C.greenSoft, border: "none", cursor: "pointer", color: C.green, padding: 6, borderRadius: 6, display: "flex" }} title="Сохранить">
-                              <Icons.save />
-                            </button>
+                            <button onClick={() => saveEditedWord(w.id)} style={{ background: C.greenSoft, border: "none", cursor: "pointer", color: C.green, padding: 6, borderRadius: 6, display: "flex" }}><Icons.save /></button>
                           ) : (
-                            <button onClick={() => startEditing(w)} style={{ background: "none", border: "none", cursor: "pointer", color: C.textMuted, padding: 6, borderRadius: 6, display: "flex" }} title="Редактировать">
-                              <Icons.edit />
-                            </button>
+                            <button onClick={() => startEditing(w)} style={{ background: "none", border: "none", cursor: "pointer", color: C.textMuted, padding: 6, borderRadius: 6, display: "flex" }}><Icons.edit /></button>
                           )}
-                          <button onClick={() => deleteWord(w.id)} style={{ background: "none", border: "none", cursor: "pointer", color: C.textMuted, padding: 6, borderRadius: 6, display: "flex" }} title="Удалить">
-                            <Icons.trash />
-                          </button>
+                          <button onClick={() => deleteWord(w.id)} style={{ background: "none", border: "none", cursor: "pointer", color: C.textMuted, padding: 6, borderRadius: 6, display: "flex" }}><Icons.trash /></button>
                         </div>
-
                       </div>
                     ))}
                   </div>
@@ -545,7 +489,7 @@ const LEARNED_THRESHOLD = 5;
               </div>
             )}
 
-            {/* ════ ИЗУЧЕННЫЕ ════ */}
+            {/* ИЗУЧЕННЫЕ */}
             {tab === "learned" && (
               <div>
                 <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 16, color: C.textSecondary }}>Изученные слова ({learnedWords.length})</div>
