@@ -15,7 +15,28 @@
 </head>
 <body>
   <div id="root"></div>
+  <div id="debug" style="position:fixed;bottom:0;left:0;right:0;background:#1E2333;color:#F0F2FF;font-family:monospace;font-size:13px;padding:12px;z-index:9999;max-height:200px;overflow:auto;border-top:2px solid #6C63FF"></div>
 
+  <script>
+    function dbg(msg) {
+      var el = document.getElementById("debug");
+      if (el) el.innerHTML += msg + "<br>";
+      console.log(msg);
+    }
+    window.addEventListener("load", function() {
+      dbg("✓ window loaded");
+      dbg("window.supabase type: " + typeof window.supabase);
+      dbg("window.supabase keys: " + (window.supabase ? Object.keys(window.supabase).join(", ") : "N/A"));
+      try {
+        var client = window.supabase.createClient("https://test.supabase.co", "test");
+        dbg("✓ createClient works: " + typeof client);
+      } catch(e) {
+        dbg("✗ createClient error: " + e.message);
+      }
+      dbg("React type: " + typeof React);
+      dbg("ReactDOM type: " + typeof ReactDOM);
+    });
+  </script>
   <script type="text/babel">
     const { useState, useEffect } = React;
 
