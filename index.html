@@ -21,8 +21,7 @@
 
     const SUPABASE_URL = "https://ovohvlhrvdqggyubzpyt.supabase.co";
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im92b2h2bGhydmRxZ2d5dWJ6cHl0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEzNTEyODAsImV4cCI6MjA5NjkyNzI4MH0.-_3ZffF4lQB_8JQvfUI9MgMs2ujOxHTThPkPoPx3p_o";
-   // const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-   const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
     const C = {
       bg: "#0F1117", surface: "#181C27", card: "#1E2333", border: "#2A3050",
@@ -363,7 +362,7 @@ const LEARNED_THRESHOLD = 5;
       const correctAnswer= currentWord ? (direction === "ru→en" ? currentWord.en : currentWord.ru) : "";
 
       if (loadingWords) {
-        return <div style={{ background: C.bg, minHeight: "100vh", color: C.textSecondary, display: "flex", alignItems: "center", justifyContent: "center" }}>Синхронизация с ...</div>;
+        return <div style={{ background: C.bg, minHeight: "100vh", color: C.textSecondary, display: "flex", alignItems: "center", justifyContent: "center" }}>Синхронизация с Supabase...</div>;
       }
 
       return (
