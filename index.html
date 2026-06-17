@@ -197,18 +197,30 @@ const LEARNED_THRESHOLD = 5;
       const [hint, setHint] = useState(false);
       const [sessionRight, setSessionRight] = useState(0);
       const [sessionWrong, setSessionWrong] = useState(0);
-
-      useEffect(() => {
+      
+     useEffect(() => {
         async function loadWords() {
           setLoadingWords(true);
-          const { data, error } = await supabase.from('wordflow_words').select('*').eq('user_id', userId);
-          if (!error && data) {
-            const mappedWords = data.map(w => ({
-              id: w.id, en: w.en, ru: w.ru, successCount: w.success_count,
-              learned: w.learned, totalRight: w.total_right, totalWrong: w.total_wrong
-            }));
-            setWords(mappedWords);
-            initQueue(mappedWords);
+          
+          // Если зашел гость, не мучаем Supabase, а даем пустой список
+          if (userId === "guest") {
+            setWords([]);
+            setLoadingWords(false);
+            return;
+          }
+
+          try {
+            const { data, error } = await supabase.from('wordflow_words').select('*').eq('user_id', userId);
+            if (!error && data) {
+              const mappedWords = data.map(w => ({
+                id: w.id, en: w.en, ru: w.ru, successCount: w.success_count,
+                learned: w.learned, totalRight: w.total_right, totalWrong: w.total_wrong
+              }));
+              setWords(mappedWords);
+              initQueue(mappedWords);
+            }
+          } catch(e) {
+            console.error(e);
           }
           setLoadingWords(false);
         }
