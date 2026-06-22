@@ -479,7 +479,7 @@
         setLookupError("");
         setLookupResult(null);
         try {
-          const resp = await fetch("/api/lookup", {
+          const resp = await fetch("lookup", {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
