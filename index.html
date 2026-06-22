@@ -438,8 +438,10 @@
       const [queue, setQueue] = useState([]);
       const [current, setCurrent] = useState(null);
       const [answer, setAnswer] = useState("");
+      // Запоминаем последний введённый ответ, чтобы при ошибке показать его рядом с правильным.
+      const [submittedAnswer, setSubmittedAnswer] = useState("");
       const [result, setResult] = useState(null);
-      const [hint, setHint] = useState(false);
+      const [hintRevealCount, setHintRevealCount] = useState(0);
       const [sessionRight, setSessionRight] = useState(0);
       const [sessionWrong, setSessionWrong] = useState(0);
 
@@ -485,7 +487,7 @@
         initQueue(cleared);
         setAnswer("");
         setResult(null);
-        setHint(false);
+        setHintRevealCount(0);
       };
 
       useEffect(() => {
@@ -641,7 +643,7 @@
         initQueue(words);
         setAnswer("");
         setResult(null);
-        setHint(false);
+        setHintRevealCount(0);
       }, [tab]);
 
       const nextWord = (updatedWords) => {
@@ -653,8 +655,9 @@
         setQueue(q.slice(1));
         setCurrent(nextId);
         setAnswer("");
+        setSubmittedAnswer("");
         setResult(null);
-        setHint(false);
+        setHintRevealCount(0);
       };
 
       const checkAnswer = async () => {
@@ -663,6 +666,8 @@
         if (!word) return;
         const correct = direction === "ru→en" ? word.en : word.ru;
         const isCorrect = norm(answer) === norm(correct);
+        // Сохраняем введённый вариант для сравнения с правильным при ошибке.
+        setSubmittedAnswer(answer);
 
         // Локальный прогресс ведётся всегда; в базу пишем ТОЛЬКО владелец (canEdit).
         // Для гостя/чужого списка прогресс остаётся в памяти и не трогает чужую статистику.
@@ -681,15 +686,18 @@
         } else {
           setSessionWrong((n) => n + 1);
           setResult("wrong");
-          const updatedWord = { ...word, successCount: 0, totalWrong: (word.totalWrong || 0) + 1 };
+          const newCount = Math.max(0, (word.successCount || 0) - 1);
+          const learnedStatus = newCount >= LEARNED_THRESHOLD;
+          const updatedWord = { ...word, successCount: newCount, learned: learnedStatus, totalWrong: (word.totalWrong || 0) + 1 };
           setWords((prev) => prev.map((w) => w.id === current ? updatedWord : w));
           if (canEdit) {
-            await db.from('wordflow_words').update({ success_count: 0, total_wrong: (word.totalWrong || 0) + 1 }).eq('id', current);
+            await db.from('wordflow_words').update({ success_count: newCount, learned: learnedStatus, total_wrong: (word.totalWrong || 0) + 1 }).eq('id', current);
           } else {
             persistLocalProgress(updatedWord);
           }
         }
       };
+
 
       const handleDontRemember = async () => {
         if (!current || result) return;
@@ -805,6 +813,17 @@
       const currentWord = words.find((w) => w.id === current);
       const question      = currentWord ? (direction === "ru→en" ? currentWord.ru : currentWord.en) : "";
       const correctAnswer = currentWord ? (direction === "ru→en" ? currentWord.en : currentWord.ru) : "";
+      const maxHintLetters = Math.min(4, correctAnswer.length);
+      const canRevealMoreHint = hintRevealCount < maxHintLetters;
+      const shownHint = correctAnswer.slice(0, hintRevealCount);
+
+      const revealMoreHint = () => {
+        if (hintRevealCount === 0) {
+          setHintRevealCount(2);
+        } else if (hintRevealCount < maxHintLetters) {
+          setHintRevealCount((c) => c + 1);
+        }
+      };
 
       if (loadingOwners || loadingWords) {
         return <div style={{ background: C.bg, minHeight: "100vh", color: C.textSecondary, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "Inter, sans-serif" }}>Синхронизация...</div>;
@@ -862,7 +881,7 @@
             {tab === "practice" && (
               <div>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-                  <button onClick={() => { setDirection(d => d === "ru→en" ? "en→ru" : "ru→en"); setResult(null); setAnswer(""); setHint(false); }} style={S.btn({ background: C.card, color: C.textPrimary, border: `1px solid ${C.border}` })}><Icons.swap /> {direction === "ru→en" ? "РУ → EN" : "EN → РУ"}</button>
+                  <button onClick={() => { setDirection(d => d === "ru→en" ? "en→ru" : "ru→en"); setResult(null); setAnswer(""); setHintRevealCount(0); }} style={S.btn({ background: C.card, color: C.textPrimary, border: `1px solid ${C.border}` })}><Icons.swap /> {direction === "ru→en" ? "РУ → EN" : "EN → РУ"}</button>
                   <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
                     <span style={{ fontSize: 14, color: C.green, fontWeight: 700 }}>✓ {sessionRight}</span>
                     <span style={{ fontSize: 14, color: C.red, fontWeight: 700 }}>✗ {sessionWrong}</span>
@@ -892,7 +911,23 @@
                       <div style={{ fontSize: 26, fontWeight: 800, letterSpacing: "-0.5px", lineHeight: 1.3 }}>{question}</div>
                       {result && (
                         <div style={{ marginTop: 20, padding: "10px 16px", borderRadius: 10, background: result === "correct" ? C.greenSoft : C.redSoft, color: result === "correct" ? C.green : C.red, fontWeight: 600, fontSize: 15 }}>
-                          {result === "correct" ? "✓ Правильно!" : result === "dont_remember" ? `В следующий раз получится! Ответ: ${correctAnswer}` : `✗ Ошибка. Правильный ответ: ${correctAnswer}`}
+                          {result === "correct" ? (
+                            "✓ Правильно!"
+                          ) : result === "dont_remember" ? (
+                            <div>
+                              <div style={{ marginBottom: 8 }}>В следующий раз получится!</div>
+                              <div style={{ fontSize: 12, color: C.textMuted, textTransform: "uppercase", letterSpacing: 1 }}>Правильный ответ</div>
+                              <div style={{ fontSize: 18, fontWeight: 800, color: C.green }}>{correctAnswer}</div>
+                            </div>
+                          ) : (
+                            <div>
+                              <div style={{ marginBottom: 10 }}>✗ Ошибка</div>
+                              <div style={{ fontSize: 12, color: C.textMuted, textTransform: "uppercase", letterSpacing: 1 }}>Твой ответ</div>
+                              <div style={{ fontSize: 18, fontWeight: 800, color: C.red, wordBreak: "break-word" }}>{submittedAnswer || "—"}</div>
+                              <div style={{ fontSize: 12, color: C.textMuted, textTransform: "uppercase", letterSpacing: 1, marginTop: 8 }}>Правильный ответ</div>
+                              <div style={{ fontSize: 18, fontWeight: 800, color: C.green, wordBreak: "break-word" }}>{correctAnswer}</div>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
@@ -911,15 +946,17 @@
                     )}
 
                     {!result && (
-                      <button onClick={() => setHint(true)} style={S.btn({ width: "100%", background: C.card, color: C.textSecondary, border: `1px solid ${C.border}`, justifyContent: "center", marginBottom: 12 })}>👁 Подсказать первую букву</button>
+                      <button
+                        onClick={revealMoreHint}
+                        disabled={!canRevealMoreHint}
+                        style={S.btn({ width: "100%", background: C.card, color: C.textSecondary, border: `1px solid ${C.border}`, justifyContent: "center", marginBottom: 12, opacity: canRevealMoreHint ? 1 : 0.65, cursor: canRevealMoreHint ? "pointer" : "not-allowed" })}
+                      >
+                        👁 {hintRevealCount === 0 ? "Подсказать первые 2 буквы" : canRevealMoreHint ? "Открыть еще букву" : "Подсказка: максимум"}
+                      </button>
                     )}
 
-                    {canCopyToMyList && (
-                      <button onClick={() => addToMyList(currentWord)} style={S.btn({ width: "100%", background: C.surface, color: C.accent, border: `1px solid ${C.accent}55`, justifyContent: "center", marginBottom: 12 })}><Icons.plus /> В мой список</button>
-                    )}
-
-                    {hint && !result && (
-                      <div style={{ background: C.yellowSoft, border: `1px solid ${C.yellow}`, borderRadius: 10, padding: "10px 14px", marginBottom: 12, color: C.yellow, fontSize: 14, fontWeight: 600, textAlign: "center" }}>Начинается на: «{correctAnswer.slice(0, 2)}…»</div>
+                    {hintRevealCount > 0 && !result && (
+                      <div style={{ background: C.yellowSoft, border: `1px solid ${C.yellow}`, borderRadius: 10, padding: "10px 14px", marginBottom: 12, color: C.yellow, fontSize: 14, fontWeight: 600, textAlign: "center" }}>Начинается на: «{shownHint}{hintRevealCount < correctAnswer.length ? "…" : ""}»</div>
                     )}
 
                     {result && (
