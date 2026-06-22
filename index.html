@@ -456,6 +456,87 @@
         setAddMsg(text);
       };
 
+      // --- Вкладка «Изучить слово» (Gemini AI) ---
+      const [lookupInput, setLookupInput] = useState("");
+      const [lookupLoading, setLookupLoading] = useState(false);
+      const [lookupResult, setLookupResult] = useState(null); // { en, ru, examples: [] }
+      const [lookupError, setLookupError] = useState("");
+      const [geminiKey, setGeminiKey] = useState(() => {
+        try { return localStorage.getItem("wordflow_gemini_key") || ""; } catch (_) { return ""; }
+      });
+      const [showKeyInput, setShowKeyInput] = useState(false);
+
+      const saveGeminiKey = (key) => {
+        const trimmed = key.trim();
+        setGeminiKey(trimmed);
+        try { localStorage.setItem("wordflow_gemini_key", trimmed); } catch (_) {}
+      };
+
+      const lookupWord = async () => {
+        const q = lookupInput.trim();
+        if (!q) return;
+        setLookupLoading(true);
+        setLookupError("");
+        setLookupResult(null);
+        try {
+          const resp = await fetch("/api/lookup", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "x-api-key": geminiKey
+            },
+            body: JSON.stringify({ q })
+          });
+
+          if (!resp.ok) {
+            const errData = await resp.json().catch(() => ({}));
+            throw new Error(errData.error || `Ошибка сервера (${resp.status})`);
+          }
+          const parsed = await resp.json();
+          setLookupResult(parsed);
+        } catch (e) {
+          setLookupError(e.message || "Ошибка запроса к Gemini AI");
+        }
+        setLookupLoading(false);
+      };
+
+      const addLookupToMyList = async () => {
+        if (!lookupResult || !canEdit && !loggedInUserId) return;
+        const en = (lookupResult.en || "").trim();
+        const ru = (lookupResult.ru || "").trim();
+        if (!en || !ru) return;
+        const ownerId = loggedInUserId;
+        if (!ownerId) { showToast("Войди в аккаунт чтобы добавить слово", "error"); return; }
+        try {
+          const { data: existing } = await db
+            .from('wordflow_words')
+            .select('id')
+            .eq('owner_id', ownerId)
+            .ilike('en', en)
+            .maybeSingle();
+          if (existing) {
+            showToast(`«${en}» уже есть в твоём списке`, "info");
+          } else {
+            const { error } = await db.from('wordflow_words').insert([{ owner_id: ownerId, en, ru }]);
+            if (error) {
+              showToast(error.message || "Не удалось добавить", "error");
+            } else {
+              showToast(`«${en}» добавлено в твой список`, "success");
+              // Обновляем локальный список если смотрим свой
+              if (viewOwnerId === ownerId) {
+                const { data: inserted } = await db.from('wordflow_words').select('*').eq('owner_id', ownerId).ilike('en', en).maybeSingle();
+                if (inserted) {
+                  setWords((prev) => [...prev, { id: inserted.id, en: inserted.en, ru: inserted.ru, successCount: 0, learned: false, totalRight: 0, totalWrong: 0, ownerId: inserted.owner_id }]);
+                }
+              }
+            }
+          }
+        } catch (e) {
+          showToast("Не удалось добавить", "error");
+        }
+        setTimeout(() => setAddMsg(""), 2500);
+      };
+
       const canEdit = !!loggedInUserId && !!viewOwnerId && loggedInUserId === viewOwnerId;
 
       // Ключ локального прогресса: свой для гостя и для каждого просматриваемого чужого списка.
@@ -866,6 +947,7 @@
           <div style={{ display: "flex", background: C.surface, borderBottom: `1px solid ${C.border}` }}>
             {[
               { id: "practice", label: "Практика", icon: <Icons.book /> },
+              { id: "lookup",   label: "Изучить",  icon: <Icons.edit /> },
               { id: "list",     label: "Слова",    icon: <Icons.list /> },
               { id: "learned",  label: "Изученные", icon: <Icons.star /> },
             ].map((t) => (
@@ -1048,6 +1130,88 @@
                         {canEdit && <button onClick={() => deleteWord(w.id)} style={{ background: "none", border: "none", cursor: "pointer", color: C.textMuted, padding: 4, borderRadius: 6, display: "flex" }}><Icons.trash /></button>}
                       </div>
                     ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ИЗУЧИТЬ СЛОВО */}
+            {tab === "lookup" && (
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 16, color: C.textSecondary }}>Изучить слово</div>
+
+                {/* Опциональный API Key */}
+                {showKeyInput ? (
+                  <div style={{ background: C.card, border: `1.5px solid ${C.border}`, borderRadius: 14, padding: 14, marginBottom: 16 }}>
+                    <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 8 }}>
+                      Gemini API Key (Не требуется, если настроен на сервере Vercel. Вы можете указать свой личный ключ: <a href="https://aistudio.google.com/" target="_blank" rel="noopener" style={{ color: C.accent }}>получить тут бесплатно</a>)
+                    </div>
+                    <input
+                      value={geminiKey}
+                      onChange={(e) => saveGeminiKey(e.target.value)}
+                      placeholder="AIzaSy..."
+                      style={{ ...S.input, fontSize: 13, padding: "8px 10px" }}
+                    />
+                    <button onClick={() => setShowKeyInput(false)} style={S.btn({ marginTop: 8, background: C.accent, color: "#fff", fontSize: 12, padding: "6px 12px" })}>Сохранить</button>
+                  </div>
+                ) : (
+                  <div style={{ marginBottom: 12, textAlign: "right" }}>
+                    <button onClick={() => setShowKeyInput(true)} style={{ background: "none", border: "none", cursor: "pointer", color: C.textMuted, fontSize: 11, textDecoration: "underline" }}>
+                      {geminiKey ? "Изменить/стереть Gemini API key" : "Использовать свой Gemini API key"}
+                    </button>
+                  </div>
+                )}
+
+                {/* Поиск */}
+                <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+                  <input
+                    value={lookupInput}
+                    onChange={(e) => setLookupInput(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") lookupWord(); }}
+                    placeholder="Введи слово (EN или RU)…"
+                    style={{ ...S.input, flex: 1 }}
+                  />
+                  <button onClick={lookupWord} disabled={lookupLoading} style={S.btn({ background: C.accent, color: "#fff", opacity: lookupLoading ? 0.7 : 1 })}>{lookupLoading ? "…" : "🔍"}</button>
+                </div>
+
+                {lookupError && <div style={{ color: C.red, fontSize: 13, marginBottom: 12 }}>{lookupError}</div>}
+
+                {lookupLoading && <div style={{ textAlign: "center", color: C.textMuted, padding: "30px 0" }}>Запрашиваю Gemini AI…</div>}
+
+                {lookupResult && (
+                  <div style={{ background: C.card, border: `1.5px solid ${C.border}`, borderRadius: 14, padding: 18 }}>
+                    {/* Перевод */}
+                    <div style={{ marginBottom: 16 }}>
+                      <div style={{ fontSize: 12, color: C.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>English</div>
+                      <div style={{ fontSize: 20, fontWeight: 800, color: C.textPrimary }}>{lookupResult.en}</div>
+                    </div>
+                    <div style={{ marginBottom: 16 }}>
+                      <div style={{ fontSize: 12, color: C.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>Русский</div>
+                      <div style={{ fontSize: 20, fontWeight: 800, color: C.textPrimary }}>{lookupResult.ru}</div>
+                    </div>
+
+                    {/* Примеры */}
+                    {lookupResult.examples && lookupResult.examples.length > 0 && (
+                      <div style={{ marginBottom: 16 }}>
+                        <div style={{ fontSize: 12, color: C.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Примеры использования</div>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                          {lookupResult.examples.map((ex, i) => (
+                            <div key={i} style={{ background: C.surface, borderRadius: 10, padding: "10px 12px" }}>
+                              <div style={{ fontSize: 14, fontWeight: 600, color: C.textPrimary, marginBottom: 3 }}>{ex.en}</div>
+                              <div style={{ fontSize: 13, color: C.textSecondary }}>{ex.ru}</div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Кнопка добавить */}
+                    {loggedInUserId && (
+                      <button onClick={addLookupToMyList} style={S.btn({ width: "100%", justifyContent: "center", background: C.accent, color: "#fff", fontSize: 14 })}><Icons.plus /> Добавить в мой список</button>
+                    )}
+                    {!loggedInUserId && (
+                      <div style={{ fontSize: 12, color: C.textMuted, textAlign: "center" }}>Войди в аккаунт чтобы добавить слово</div>
+                    )}
                   </div>
                 )}
               </div>
