@@ -70,7 +70,7 @@ Make sure "en" always contains English and "ru" always contains Russian, regardl
     console.log('Промт отправляется в Gemini:', prompt);
 
     const modelName = 'gemini-2.0-flash';
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${geminiKey}`;
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1/models/${modelName}:generateContent?key=${geminiKey}`;
     
     console.log('URL Gemini API:', geminiUrl.replace(geminiKey, '***KEY***'));
     console.log('Отправляем запрос в Gemini...');
