@@ -53,7 +53,7 @@ Return a JSON object (and NOTHING else, no markdown fences like \`\`\`json) with
 - "examples": an array of 3 short example sentences in English with Russian translation, each as {"en":"...","ru":"..."}
 Make sure "en" always contains English and "ru" always contains Russian, regardless of what language the user typed.`;
 
-    const modelName = 'gemini-2.0-flash';
+    const modelName = 'gemini-1.5-flash-latest';
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${geminiKey}`,
       {
