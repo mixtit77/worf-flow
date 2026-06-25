@@ -87,7 +87,7 @@ Make sure "en" always contains English and "ru" always contains Russian, regardl
           }
         ],
         generationConfig: {
-          responseMimeType: 'application/json'
+          response_mime_type: 'application/json'
         }
       })
     });
