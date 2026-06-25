@@ -86,7 +86,7 @@ Make sure "en" always contains English and "ru" always contains Russian, regardl
             parts: [{ text: prompt }]
           }
         ],
-        generationConfig: {
+        generation_config: {
           response_mime_type: 'application/json'
         }
       })
