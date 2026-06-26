@@ -4,8 +4,8 @@ module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
   res.setHeader(
-    'Access-Control-Allow-Headers',
-    'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, x-api-key, Authorization'
+      'Access-Control-Allow-Headers',
+      'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, x-api-key, Authorization'
   );
 
   if (req.method === 'OPTIONS') {
@@ -17,7 +17,7 @@ module.exports = async function handler(req, res) {
     console.log('Метод:', req.method);
     console.log('URL:', req.url);
     console.log('Headers:', JSON.stringify(req.headers, null, 2));
-    
+
     let q = '';
     let clientKey = '';
 
@@ -61,7 +61,7 @@ module.exports = async function handler(req, res) {
 
     const prompt = `You are a language assistant. The user entered a word or phrase: "${q}".
 Determine if it is English or Russian.
-Return a JSON object (and NOTHING else, no markdown fences like \`\`\`json) with exactly these fields:
+Return a JSON object with exactly these fields:
 - "en": the English version of this word/phrase
 - "ru": the Russian translation
 - "examples": an array of 3 short example sentences in English with Russian translation, each as {"en":"...","ru":"..."}
@@ -69,25 +69,42 @@ Make sure "en" always contains English and "ru" always contains Russian, regardl
 
     console.log('Промт отправляется в Gemini:', prompt);
 
-    const modelName = 'gemini-2.0-flash';
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1/models/${modelName}:generateContent?key=${geminiKey}`;
-    
-    console.log('URL Gemini API:', geminiUrl.replace(geminiKey, '***KEY***'));
-    console.log('Отправляем запрос в Gemini...');
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/interactions`;
+
+    console.log('URL Gemini API:', geminiUrl);
+    console.log('Отправляем запрос в Gemini Interactions API...');
 
     const response = await fetch(geminiUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'x-goog-api-key': geminiKey
       },
       body: JSON.stringify({
-        contents: [
-          {
-            parts: [{ text: prompt }]
+        model: "gemini-3.5-flash",
+        input: prompt,
+        response_format: {
+          type: "text",
+          mime_type: "application/json",
+          schema: {
+            type: "object",
+            properties: {
+              en: { type: "string", description: "the English version of this word/phrase" },
+              ru: { type: "string", description: "the Russian translation" },
+              examples: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    en: { type: "string" },
+                    ru: { type: "string" }
+                  },
+                  required: ["en", "ru"]
+                }
+              }
+            },
+            required: ["en", "ru", "examples"]
           }
-        ],
-        generation_config: {
-          response_mime_type: 'application/json'
         }
       })
     });
@@ -105,7 +122,9 @@ Make sure "en" always contains English and "ru" always contains Russian, regardl
     const result = await response.json();
     console.log('Ответ от Gemini получен:', JSON.stringify(result, null, 2));
 
-    const rawText = result?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    const modelOutputStep = result.steps?.find(s => s.type === 'model_output');
+    const rawText = modelOutputStep?.content?.find(c => c.type === 'text')?.text || '';
+
     console.log('Извлеченный текст:', rawText);
 
     // Пытаемся распарсить JSON, возвращенный Gemini
